@@ -1,0 +1,42 @@
+name: SpeechToText
+options:
+  bundleIdPrefix: com.germanescobar
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: 6.0
+    MACOSX_DEPLOYMENT_TARGET: 14.0
+targets:
+  SpeechToText:
+    type: application
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - path: SpeechToText
+        excludes:
+          - Resources/Info.plist
+    info:
+      path: SpeechToText/Resources/Info.plist
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.germanescobar.speechtotext
+        PRODUCT_NAME: SpeechToText
+        GENERATE_INFOPLIST_FILE: NO
+        CODE_SIGN_STYLE: Automatic
+        CURRENT_PROJECT_VERSION: 1
+        MARKETING_VERSION: 1.0
+    scheme:
+      testTargets:
+        - SpeechToTextTests
+  SpeechToTextTests:
+    type: bundle.unit-test
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - SpeechToTextTests
+    dependencies:
+      - target: SpeechToText
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.germanescobar.speechtotext.tests
+        GENERATE_INFOPLIST_FILE: YES
