@@ -4,6 +4,7 @@ import SwiftUI
 @MainActor
 final class FloatingStatusPanelController {
     private let viewModel = FloatingStatusViewModel()
+    private var shouldPersistUntilDismissed = false
     private lazy var panel: NSPanel = {
         let panel = NSPanel(
             contentRect: NSRect(x: 0, y: 0, width: 320, height: 130),
@@ -23,12 +24,22 @@ final class FloatingStatusPanelController {
         panel.standardWindowButton(.closeButton)?.isHidden = true
         panel.standardWindowButton(.miniaturizeButton)?.isHidden = true
         panel.standardWindowButton(.zoomButton)?.isHidden = true
-        panel.contentView = NSHostingView(rootView: FloatingStatusView(viewModel: viewModel))
+        panel.contentView = NSHostingView(
+            rootView: FloatingStatusView(
+                viewModel: viewModel,
+                onClose: { [weak self] in
+                    Task { @MainActor [weak self] in
+                        self?.hide()
+                    }
+                }
+            )
+        )
         return panel
     }()
 
     func update(with state: DictationSessionState) {
         viewModel.state = state
+        shouldPersistUntilDismissed = (state.phase == .failed)
 
         switch state.phase {
         case .idle:
@@ -39,7 +50,12 @@ final class FloatingStatusPanelController {
     }
 
     func hide() {
+        shouldPersistUntilDismissed = false
         panel.orderOut(nil)
+    }
+
+    var isPersistingUntilDismissed: Bool {
+        shouldPersistUntilDismissed
     }
 
     private func show() {

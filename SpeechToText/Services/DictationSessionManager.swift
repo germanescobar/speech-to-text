@@ -1,28 +1,21 @@
 import Foundation
 
-private final class SessionManagerBox: @unchecked Sendable {
-    weak var value: DictationSessionManager?
-
-    init(_ value: DictationSessionManager) {
-        self.value = value
-    }
-}
-
 @MainActor
 final class DictationSessionManager: ObservableObject {
     @Published private(set) var state: DictationSessionState = .idle
 
     private let permissionsCoordinator: PermissionsCoordinator
-    private let transcriptionService: SpeechTranscribing
+    private let transcriptionServiceFactory: () -> SpeechTranscribing
     private let locale: Locale
+    private var transcriptionService: SpeechTranscribing?
 
     init(
         permissionsCoordinator: PermissionsCoordinator,
-        transcriptionService: SpeechTranscribing,
-        locale: Locale = Locale(identifier: "en_US")
+        transcriptionServiceFactory: @escaping () -> SpeechTranscribing,
+        locale: Locale = .autoupdatingCurrent
     ) {
         self.permissionsCoordinator = permissionsCoordinator
-        self.transcriptionService = transcriptionService
+        self.transcriptionServiceFactory = transcriptionServiceFactory
         self.locale = locale
     }
 
@@ -33,7 +26,6 @@ final class DictationSessionManager: ObservableObject {
 
         state = DictationSessionState(
             phase: .requestingPermissions,
-            partialTranscript: "",
             finalTranscript: "",
             message: "Requesting permissions…",
             startedAt: nil
@@ -45,33 +37,37 @@ final class DictationSessionManager: ObservableObject {
             return
         }
 
-        let speechGranted = await permissionsCoordinator.requestSpeechRecognitionIfNeeded()
-        guard speechGranted else {
-            state = .failed(message: "Speech recognition access is required to transcribe dictation.")
-            return
+        let transcriptionService = transcriptionServiceFactory()
+        self.transcriptionService = transcriptionService
+
+        if transcriptionService.requiresSpeechRecognitionPermission {
+            let speechGranted = await permissionsCoordinator.requestSpeechRecognitionIfNeeded()
+            guard speechGranted else {
+                state = .failed(message: "Speech recognition access is required to transcribe dictation.")
+                self.transcriptionService = nil
+                return
+            }
         }
 
         do {
-            try transcriptionService.startTranscribing(
-                locale: locale,
-                onPartialResult: Self.makePartialResultHandler(for: self)
-            )
-
+            try transcriptionService.startRecording()
             state = .listening(startedAt: Date())
         } catch {
+            self.transcriptionService = nil
             state = .failed(message: error.localizedDescription)
         }
     }
 
     func stop() async -> String? {
-        guard state.phase == .listening else {
+        guard state.phase == .listening, let transcriptionService else {
             return nil
         }
 
-        state = .processing(partialTranscript: state.partialTranscript)
+        state = .processing()
 
         do {
-            let transcript = try await transcriptionService.stopTranscribing()
+            let transcript = try await transcriptionService.stopRecordingAndTranscribe(locale: locale)
+            self.transcriptionService = nil
             let normalized = TextNormalizer.normalize(transcript)
 
             guard !normalized.isEmpty else {
@@ -82,13 +78,15 @@ final class DictationSessionManager: ObservableObject {
             state = .completed(text: normalized, message: "Copied to clipboard.")
             return normalized
         } catch {
+            self.transcriptionService = nil
             state = .failed(message: error.localizedDescription)
             return nil
         }
     }
 
     func cancel() {
-        transcriptionService.cancel()
+        transcriptionService?.cancel()
+        transcriptionService = nil
         state = .idle
     }
 
@@ -106,18 +104,6 @@ final class DictationSessionManager: ObservableObject {
             return true
         case .requestingPermissions, .listening, .processing:
             return false
-        }
-    }
-
-    nonisolated private static func makePartialResultHandler(
-        for manager: DictationSessionManager
-    ) -> @Sendable (String) -> Void {
-        let box = SessionManagerBox(manager)
-
-        return { partial in
-            Task { @MainActor in
-                box.value?.state.partialTranscript = partial
-            }
         }
     }
 }

@@ -12,6 +12,7 @@ struct SettingsView: View {
 
                 dictationSection
                 permissionsSection
+                diagnosticsSection
                 historySection
             }
             .padding(24)
@@ -30,7 +31,7 @@ struct SettingsView: View {
                 .foregroundStyle(.secondary)
             Text("Permissions")
                 .font(.headline)
-            Text("Microphone and Speech Recognition are required to dictate. Accessibility is only needed if you want auto-paste into the previously focused app.")
+            Text("Microphone is always required. Speech Recognition is only required when you use the Apple Speech provider. Accessibility is only needed if you want auto-paste into the previously focused app.")
                 .foregroundStyle(.secondary)
 
             HStack {
@@ -62,6 +63,43 @@ struct SettingsView: View {
             Text("Dictation")
                 .font(.headline)
 
+            Picker("Transcription Provider", selection: Binding(
+                get: { controller.transcriptionProvider },
+                set: { controller.setTranscriptionProvider($0) }
+            )) {
+                ForEach(TranscriptionProvider.allCases) { provider in
+                    Text(provider.displayName).tag(provider)
+                }
+            }
+
+            Text(controller.transcriptionProvider.detailText)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+
+            if controller.transcriptionProvider != .appleSpeech {
+                VStack(alignment: .leading, spacing: 10) {
+                    if controller.transcriptionProvider.requiresAPIKey {
+                        SecureField("API Key", text: Binding(
+                            get: { controller.transcriptionAPIKey },
+                            set: { controller.setTranscriptionAPIKey($0) }
+                        ))
+                        .textFieldStyle(.roundedBorder)
+                    }
+
+                    TextField("Base URL", text: Binding(
+                        get: { controller.transcriptionBaseURL },
+                        set: { controller.setTranscriptionBaseURL($0) }
+                    ))
+                    .textFieldStyle(.roundedBorder)
+
+                    TextField("Model", text: Binding(
+                        get: { controller.transcriptionModel },
+                        set: { controller.setTranscriptionModel($0) }
+                    ))
+                    .textFieldStyle(.roundedBorder)
+                }
+            }
+
             ShortcutRecorderView(shortcut: controller.shortcut) { shortcut in
                 controller.updateShortcut(shortcut)
             }
@@ -74,6 +112,16 @@ struct SettingsView: View {
             Text("Auto-paste uses macOS Accessibility permissions. If access is missing, dictation still succeeds and the text stays on your clipboard.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
+
+            if controller.transcriptionProvider != .appleSpeech {
+                Text("Groq and local OpenAI-compatible backends record audio first, then transcribe when you release the shortcut, so they do not show live partial text yet.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            } else {
+                Text("Apple Speech now follows the same record-then-transcribe flow as the other providers for a simpler, consistent pipeline.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
 
             Text("Launch at login is deferred for this first version.")
                 .font(.footnote)
@@ -132,6 +180,22 @@ struct SettingsView: View {
                 controller.clearHistory()
             }
             .buttonStyle(.bordered)
+        }
+    }
+
+    private var diagnosticsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Diagnostics")
+                .font(.headline)
+
+            Text("If Groq or another provider fails, the app now writes a log file we can inspect.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+
+            Text(controller.diagnosticsLogPath)
+                .font(.footnote.monospaced())
+                .textSelection(.enabled)
+                .foregroundStyle(.secondary)
         }
     }
 }

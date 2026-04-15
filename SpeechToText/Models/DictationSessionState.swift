@@ -11,14 +11,12 @@ enum DictationSessionPhase: String, Codable, Equatable {
 
 struct DictationSessionState: Equatable {
     var phase: DictationSessionPhase
-    var partialTranscript: String
     var finalTranscript: String
     var message: String?
     var startedAt: Date?
 
     static let idle = DictationSessionState(
         phase: .idle,
-        partialTranscript: "",
         finalTranscript: "",
         message: nil,
         startedAt: nil
@@ -27,17 +25,15 @@ struct DictationSessionState: Equatable {
     static func listening(startedAt: Date) -> DictationSessionState {
         DictationSessionState(
             phase: .listening,
-            partialTranscript: "",
             finalTranscript: "",
-            message: "Listening…",
+            message: "Recording…",
             startedAt: startedAt
         )
     }
 
-    static func processing(partialTranscript: String) -> DictationSessionState {
+    static func processing() -> DictationSessionState {
         DictationSessionState(
             phase: .processing,
-            partialTranscript: partialTranscript,
             finalTranscript: "",
             message: "Processing…",
             startedAt: nil
@@ -47,7 +43,6 @@ struct DictationSessionState: Equatable {
     static func completed(text: String, message: String) -> DictationSessionState {
         DictationSessionState(
             phase: .completed,
-            partialTranscript: text,
             finalTranscript: text,
             message: message,
             startedAt: nil
@@ -57,7 +52,6 @@ struct DictationSessionState: Equatable {
     static func failed(message: String) -> DictationSessionState {
         DictationSessionState(
             phase: .failed,
-            partialTranscript: "",
             finalTranscript: "",
             message: message,
             startedAt: nil
