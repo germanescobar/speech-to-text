@@ -8,7 +8,7 @@ final class DictationSessionManagerTests: XCTestCase {
         let speech = TestSpeechTranscriber()
         let manager = DictationSessionManager(
             permissionsCoordinator: permissions,
-            transcriptionService: speech
+            transcriptionServiceFactory: { speech }
         )
 
         await manager.start()
@@ -21,7 +21,7 @@ final class DictationSessionManagerTests: XCTestCase {
         let speech = TestSpeechTranscriber(finalTranscript: " hello   world ")
         let manager = DictationSessionManager(
             permissionsCoordinator: permissions,
-            transcriptionService: speech
+            transcriptionServiceFactory: { speech }
         )
 
         await manager.start()
@@ -37,19 +37,34 @@ final class DictationSessionManagerTests: XCTestCase {
         let speech = TestSpeechTranscriber()
         let manager = DictationSessionManager(
             permissionsCoordinator: permissions,
-            transcriptionService: speech
+            transcriptionServiceFactory: { speech }
         )
 
         await manager.start()
 
         XCTAssertEqual(manager.state.phase, .failed)
     }
+
+    func testStartSkipsSpeechPermissionForNonAppleProvider() async {
+        let permissions = TestPermissionsCoordinator(microphoneGranted: true, speechGranted: false)
+        let speech = TestSpeechTranscriber(requiresSpeechRecognitionPermission: false)
+        let manager = DictationSessionManager(
+            permissionsCoordinator: permissions,
+            transcriptionServiceFactory: { speech }
+        )
+
+        await manager.start()
+
+        XCTAssertEqual(manager.state.phase, .listening)
+        XCTAssertEqual(permissions.speechPermissionRequests, 0)
+    }
 }
 
 @MainActor
-private final class TestPermissionsCoordinator: PermissionsCoordinator {
+private final class TestPermissionsCoordinator: PermissionsCoordinator, @unchecked Sendable {
     private let microphoneGrantedValue: Bool
     private let speechGrantedValue: Bool
+    private(set) var speechPermissionRequests = 0
 
     init(microphoneGranted: Bool, speechGranted: Bool) {
         self.microphoneGrantedValue = microphoneGranted
@@ -61,23 +76,28 @@ private final class TestPermissionsCoordinator: PermissionsCoordinator {
     }
 
     override func requestSpeechRecognitionIfNeeded() async -> Bool {
-        speechGrantedValue
+        speechPermissionRequests += 1
+        return speechGrantedValue
     }
 }
 
 private final class TestSpeechTranscriber: SpeechTranscribing, @unchecked Sendable {
     private let finalTranscript: String
+    let requiresSpeechRecognitionPermission: Bool
 
-    init(finalTranscript: String = "test transcript") {
+    init(
+        finalTranscript: String = "test transcript",
+        requiresSpeechRecognitionPermission: Bool = true
+    ) {
         self.finalTranscript = finalTranscript
+        self.requiresSpeechRecognitionPermission = requiresSpeechRecognitionPermission
     }
 
-    func startTranscribing(locale: Locale, onPartialResult: @escaping @Sendable (String) -> Void) throws {
-        onPartialResult(finalTranscript)
-    }
+    func startRecording() throws {}
 
-    func stopTranscribing() async throws -> String {
-        finalTranscript
+    func stopRecordingAndTranscribe(locale: Locale) async throws -> String {
+        _ = locale
+        return finalTranscript
     }
 
     func cancel() {}

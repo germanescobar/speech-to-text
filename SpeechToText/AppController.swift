@@ -29,8 +29,12 @@ final class AppController: ObservableObject {
         historyStore: HistoryStore = HistoryStore(),
         permissionsCoordinator: PermissionsCoordinator = PermissionsCoordinator(),
         clipboardPasteService: ClipboardPasteService = ClipboardPasteService(),
-        transcriptionService: SpeechTranscribing = LiveSpeechTranscriptionService()
+        transcriptionServiceFactory: (() -> SpeechTranscribing)? = nil
     ) {
+        let resolvedTranscriptionFactory = transcriptionServiceFactory ?? {
+            AppController.makeTranscriptionService(settingsStore: settingsStore)
+        }
+
         self.settingsStore = settingsStore
         self.historyStore = historyStore
         self.permissionsCoordinator = permissionsCoordinator
@@ -39,7 +43,7 @@ final class AppController: ObservableObject {
         self.floatingPanelController = FloatingStatusPanelController()
         self.sessionManager = DictationSessionManager(
             permissionsCoordinator: permissionsCoordinator,
-            transcriptionService: transcriptionService
+            transcriptionServiceFactory: resolvedTranscriptionFactory
         )
 
         bindState()
@@ -56,8 +60,13 @@ final class AppController: ObservableObject {
     var autoPasteEnabled: Bool { settingsStore.autoPasteEnabled }
     var historyLimit: Int { settingsStore.historyLimit }
     var hasCompletedOnboarding: Bool { settingsStore.hasCompletedOnboarding }
+    var transcriptionProvider: TranscriptionProvider { settingsStore.transcriptionProvider }
+    var transcriptionAPIKey: String { settingsStore.transcriptionAPIKey }
+    var transcriptionBaseURL: String { settingsStore.transcriptionBaseURL }
+    var transcriptionModel: String { settingsStore.transcriptionModel }
     var recentHistory: [RecentTranscript] { historyStore.recent }
     var menuBarIconName: String { isListening ? "waveform.circle.fill" : "waveform.circle" }
+    var diagnosticsLogPath: String { DiagnosticsLogger.shared.logFileURL.path }
 
     var isListening: Bool {
         sessionManager.state.phase == .listening
@@ -90,7 +99,7 @@ final class AppController: ObservableObject {
         case .idle:
             return nil
         case .listening:
-            return "Listening now"
+            return "Recording now"
         case .requestingPermissions, .processing, .completed, .failed:
             return sessionManager.state.message
         }
@@ -124,6 +133,29 @@ final class AppController: ObservableObject {
 
     func setHistoryLimit(_ limit: Int) {
         settingsStore.historyLimit = max(1, limit)
+    }
+
+    func setTranscriptionProvider(_ provider: TranscriptionProvider) {
+        let previousProvider = settingsStore.transcriptionProvider
+        settingsStore.transcriptionProvider = provider
+
+        guard provider != previousProvider else { return }
+
+        settingsStore.transcriptionBaseURL = provider.defaultBaseURL
+        settingsStore.transcriptionModel = provider.defaultModel
+        refreshPermissionSnapshot()
+    }
+
+    func setTranscriptionAPIKey(_ apiKey: String) {
+        settingsStore.transcriptionAPIKey = apiKey
+    }
+
+    func setTranscriptionBaseURL(_ baseURL: String) {
+        settingsStore.transcriptionBaseURL = baseURL
+    }
+
+    func setTranscriptionModel(_ model: String) {
+        settingsStore.transcriptionModel = model
     }
 
     func clearHistory() {
@@ -160,13 +192,16 @@ final class AppController: ObservableObject {
             guard let self else { return }
 
             let microphoneGranted = await self.permissionsCoordinator.requestMicrophoneIfNeeded()
-            let speechGranted = await self.permissionsCoordinator.requestSpeechRecognitionIfNeeded()
+            let requiresSpeechRecognition = self.settingsStore.transcriptionProvider.requiresSpeechRecognitionPermission
+            let speechGranted = requiresSpeechRecognition
+                ? await self.permissionsCoordinator.requestSpeechRecognitionIfNeeded()
+                : true
 
             if !microphoneGranted {
                 self.permissionsCoordinator.openMicrophoneSettings()
             }
 
-            if !speechGranted {
+            if requiresSpeechRecognition && !speechGranted {
                 self.permissionsCoordinator.openSpeechRecognitionSettings()
             }
 
@@ -229,21 +264,47 @@ final class AppController: ObservableObject {
 
     private func startDictation() async {
         targetApplication = activeTargetApplication()
+        DiagnosticsLogger.shared.log(
+            "Starting dictation session",
+            metadata: [
+                "provider": settingsStore.transcriptionProvider.rawValue,
+                "baseURL": settingsStore.transcriptionBaseURL,
+                "model": settingsStore.transcriptionModel
+            ]
+        )
         await sessionManager.start()
 
         if sessionManager.state.phase == .failed {
-            scheduleOverlayHide()
+            DiagnosticsLogger.shared.log(
+                "Dictation failed to start",
+                metadata: ["message": sessionManager.state.message ?? "Unknown error"]
+            )
+            scheduleOverlayHide(after: 5)
         }
     }
 
     private func stopDictation() async {
         guard let transcript = await sessionManager.stop() else {
-            scheduleOverlayHide()
+            DiagnosticsLogger.shared.log(
+                "Dictation stopped without transcript",
+                metadata: ["message": sessionManager.state.message ?? "No message"]
+            )
+            if !floatingPanelController.isPersistingUntilDismissed {
+                scheduleOverlayHide(after: 5)
+            }
             return
         }
 
         clipboardPasteService.copy(text: transcript)
         historyStore.add(text: transcript, limit: settingsStore.historyLimit)
+        DiagnosticsLogger.shared.log(
+            "Dictation transcript stored",
+            metadata: [
+                "textLength": String(transcript.count),
+                "historyCount": String(historyStore.recent.count),
+                "preview": String(transcript.prefix(120))
+            ]
+        )
 
         var completionMessage = "Copied to clipboard."
 
@@ -259,10 +320,13 @@ final class AppController: ObservableObject {
         scheduleOverlayHide()
     }
 
-    private func scheduleOverlayHide() {
+    private func scheduleOverlayHide(after seconds: Double = 2.4) {
+        if floatingPanelController.isPersistingUntilDismissed {
+            return
+        }
         hideOverlayTask?.cancel()
         hideOverlayTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .seconds(2.4))
+            try? await Task.sleep(for: .seconds(seconds))
             self?.sessionManager.cancel()
         }
     }
@@ -284,5 +348,20 @@ final class AppController: ObservableObject {
                 }
                 return app
             }
+    }
+
+    private static func makeTranscriptionService(settingsStore: SettingsStore) -> SpeechTranscribing {
+        switch settingsStore.transcriptionProvider {
+        case .appleSpeech:
+            return AppleSpeechTranscriptionService()
+        case .groq, .localOpenAICompatible:
+            return OpenAICompatibleSpeechTranscriptionService(
+                configuration: OpenAICompatibleTranscriptionConfiguration(
+                    baseURL: settingsStore.transcriptionBaseURL,
+                    apiKey: settingsStore.transcriptionAPIKey,
+                    model: settingsStore.transcriptionModel
+                )
+            )
+        }
     }
 }

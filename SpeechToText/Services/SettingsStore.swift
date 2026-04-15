@@ -6,6 +6,10 @@ final class SettingsStore: ObservableObject {
     @Published var autoPasteEnabled: Bool
     @Published var historyLimit: Int
     @Published var hasCompletedOnboarding: Bool
+    @Published var transcriptionProvider: TranscriptionProvider
+    @Published var transcriptionAPIKey: String
+    @Published var transcriptionBaseURL: String
+    @Published var transcriptionModel: String
 
     private let userDefaults: UserDefaults
     private var cancellables = Set<AnyCancellable>()
@@ -15,6 +19,10 @@ final class SettingsStore: ObservableObject {
         static let autoPasteEnabled = "settings.autoPasteEnabled"
         static let historyLimit = "settings.historyLimit"
         static let hasCompletedOnboarding = "settings.hasCompletedOnboarding"
+        static let transcriptionProvider = "settings.transcriptionProvider"
+        static let transcriptionAPIKey = "settings.transcriptionAPIKey"
+        static let transcriptionBaseURL = "settings.transcriptionBaseURL"
+        static let transcriptionModel = "settings.transcriptionModel"
     }
 
     init(userDefaults: UserDefaults = .standard) {
@@ -33,6 +41,15 @@ final class SettingsStore: ObservableObject {
         autoPasteEnabled = userDefaults.bool(forKey: Keys.autoPasteEnabled)
         historyLimit = max(1, storedHistoryLimit ?? 20)
         hasCompletedOnboarding = userDefaults.bool(forKey: Keys.hasCompletedOnboarding)
+        let storedProvider = TranscriptionProvider(
+            rawValue: userDefaults.string(forKey: Keys.transcriptionProvider) ?? ""
+        ) ?? .appleSpeech
+        transcriptionProvider = storedProvider
+        transcriptionAPIKey = userDefaults.string(forKey: Keys.transcriptionAPIKey) ?? ""
+        transcriptionBaseURL = userDefaults.string(forKey: Keys.transcriptionBaseURL)
+            ?? storedProvider.defaultBaseURL
+        transcriptionModel = userDefaults.string(forKey: Keys.transcriptionModel)
+            ?? storedProvider.defaultModel
 
         bindPersistence()
     }
@@ -65,6 +82,30 @@ final class SettingsStore: ObservableObject {
         $hasCompletedOnboarding
             .sink { [weak self] hasCompleted in
                 self?.userDefaults.set(hasCompleted, forKey: Keys.hasCompletedOnboarding)
+            }
+            .store(in: &cancellables)
+
+        $transcriptionProvider
+            .sink { [weak self] provider in
+                self?.userDefaults.set(provider.rawValue, forKey: Keys.transcriptionProvider)
+            }
+            .store(in: &cancellables)
+
+        $transcriptionAPIKey
+            .sink { [weak self] apiKey in
+                self?.userDefaults.set(apiKey, forKey: Keys.transcriptionAPIKey)
+            }
+            .store(in: &cancellables)
+
+        $transcriptionBaseURL
+            .sink { [weak self] baseURL in
+                self?.userDefaults.set(baseURL, forKey: Keys.transcriptionBaseURL)
+            }
+            .store(in: &cancellables)
+
+        $transcriptionModel
+            .sink { [weak self] model in
+                self?.userDefaults.set(model, forKey: Keys.transcriptionModel)
             }
             .store(in: &cancellables)
     }

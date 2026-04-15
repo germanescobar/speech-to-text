@@ -2,6 +2,7 @@ import SwiftUI
 
 struct FloatingStatusView: View {
     @ObservedObject var viewModel: FloatingStatusViewModel
+    let onClose: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -14,6 +15,16 @@ struct FloatingStatusView: View {
                 Spacer()
                 if viewModel.state.phase == .listening {
                     elapsedTimeView
+                }
+                if viewModel.state.phase == .failed {
+                    Button(action: onClose) {
+                        Image(systemName: "xmark")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 18, height: 18)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Close")
                 }
             }
 
@@ -57,7 +68,7 @@ struct FloatingStatusView: View {
         case .requestingPermissions:
             return "Checking Access"
         case .listening:
-            return "Listening"
+            return "Recording"
         case .processing:
             return "Processing"
         case .completed:
@@ -69,11 +80,17 @@ struct FloatingStatusView: View {
 
     private var bodyText: String {
         switch viewModel.state.phase {
-        case .listening, .processing:
-            return viewModel.state.partialTranscript.isEmpty ? "Speak naturally and press the shortcut again when you’re done." : viewModel.state.partialTranscript
+        case .listening:
+            return "Speak naturally and press the shortcut again when you’re done."
+        case .processing:
+            return "SpeechToText is transcribing your recording."
         case .completed:
             return viewModel.state.finalTranscript
         case .failed:
+            if let message = viewModel.state.message,
+               message.contains("appears to be silent") {
+                return "No usable audio was detected. Check your macOS audio input device and try again."
+            }
             return viewModel.state.message ?? "The last dictation could not be completed."
         case .requestingPermissions:
             return "SpeechToText is requesting the permissions needed to begin dictation."
