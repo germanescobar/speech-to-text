@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		01E816A79F2E713E170F01E3 /* FloatingStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5A78F1FA70C32967D208286 /* FloatingStatusView.swift */; };
+		A1B2C3D4E5F60718293A4B5C /* AudioWaveformView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1E2F3A4B5C60718293A4B5C /* AudioWaveformView.swift */; };
 		0633927D7433B0B5A9B04E06 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6BAB0730AAA2706DB2B8196 /* SettingsView.swift */; };
 		06ADD81B413E5A6D7228A945 /* PermissionsCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80B9663492DB8D56D6FFB6BD /* PermissionsCoordinator.swift */; };
 		165E025998B74EEA8545E731 /* ClipboardPasteService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB37B01682399BAFDFD3844A /* ClipboardPasteService.swift */; };
@@ -60,6 +61,7 @@
 		86C3F98E39D45C8A5A4EA01E /* SettingsStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsStoreTests.swift; sourceTree = "<group>"; };
 		8E2658B3956F8D8AA0229070 /* DictationSessionManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationSessionManagerTests.swift; sourceTree = "<group>"; };
 		A5A78F1FA70C32967D208286 /* FloatingStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingStatusView.swift; sourceTree = "<group>"; };
+		D1E2F3A4B5C60718293A4B5C /* AudioWaveformView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioWaveformView.swift; sourceTree = "<group>"; };
 		A9F8E48D121A9BC58CFF667D /* RecentTranscript.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentTranscript.swift; sourceTree = "<group>"; };
 		B3E125DC1A3326E829C0197B /* FloatingStatusPanelController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingStatusPanelController.swift; sourceTree = "<group>"; };
 		BB37B01682399BAFDFD3844A /* ClipboardPasteService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardPasteService.swift; sourceTree = "<group>"; };
@@ -128,6 +130,7 @@
 		5B1E0CEC3797DFBCC5A210A9 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				D1E2F3A4B5C60718293A4B5C /* AudioWaveformView.swift */,
 				B3E125DC1A3326E829C0197B /* FloatingStatusPanelController.swift */,
 				A5A78F1FA70C32967D208286 /* FloatingStatusView.swift */,
 				55C1B4A9F1F6DA1CE141E55F /* MenuBarContentView.swift */,
@@ -252,6 +255,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A1B2C3D4E5F60718293A4B5C /* AudioWaveformView.swift in Sources */,
 				D4503D59386E0964F96F750D /* AppController.swift in Sources */,
 				165E025998B74EEA8545E731 /* ClipboardPasteService.swift in Sources */,
 				9004BB5FD5F5E47E9C13E7EB /* DiagnosticsLogger.swift in Sources */,

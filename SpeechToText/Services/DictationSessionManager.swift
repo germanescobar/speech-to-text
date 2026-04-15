@@ -90,6 +90,10 @@ final class DictationSessionManager: ObservableObject {
         state = .idle
     }
 
+    func currentAudioLevel() -> Float? {
+        transcriptionService?.currentAudioLevel()
+    }
+
     func setCompletionMessage(_ message: String) {
         guard state.phase == .completed else {
             return

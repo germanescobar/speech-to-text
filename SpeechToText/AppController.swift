@@ -224,6 +224,15 @@ final class AppController: ObservableObject {
                 Task { @MainActor [weak self] in
                     guard let self else { return }
                     self.objectWillChange.send()
+
+                    if state.phase == .listening {
+                        self.floatingPanelController.audioLevelProvider = { [weak self] in
+                            self?.sessionManager.currentAudioLevel() ?? 0
+                        }
+                    } else {
+                        self.floatingPanelController.audioLevelProvider = nil
+                    }
+
                     self.floatingPanelController.update(with: state)
 
                     if state.phase == .failed {

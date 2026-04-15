@@ -37,6 +37,11 @@ final class FloatingStatusPanelController {
         return panel
     }()
 
+    var audioLevelProvider: (() -> Float)? {
+        get { viewModel.audioLevelProvider }
+        set { viewModel.audioLevelProvider = newValue }
+    }
+
     func update(with state: DictationSessionState) {
         viewModel.state = state
         shouldPersistUntilDismissed = (state.phase == .failed)
@@ -80,4 +85,5 @@ final class FloatingStatusPanelController {
 @MainActor
 final class FloatingStatusViewModel: ObservableObject {
     @Published var state: DictationSessionState = .idle
+    var audioLevelProvider: (() -> Float)?
 }
