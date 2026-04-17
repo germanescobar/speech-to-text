@@ -8,6 +8,11 @@ protocol SpeechTranscribing: AnyObject, Sendable {
     func startRecording() throws
     func stopRecordingAndTranscribe(locale: Locale) async throws -> String
     func cancel()
+    func currentAudioLevel() -> Float?
+}
+
+extension SpeechTranscribing {
+    func currentAudioLevel() -> Float? { nil }
 }
 
 enum SpeechTranscriptionError: LocalizedError {
@@ -81,6 +86,7 @@ private final class DictationAudioRecorder: @unchecked Sendable {
 
         do {
             let recorder = try AVAudioRecorder(url: outputURL, settings: settings)
+            recorder.isMeteringEnabled = true
             recorder.prepareToRecord()
 
             guard recorder.record() else {
@@ -173,6 +179,16 @@ private final class DictationAudioRecorder: @unchecked Sendable {
         return fileURL
     }
 
+    func currentLevel() -> Float {
+        guard let recorder, recorder.isRecording else { return 0 }
+        recorder.updateMeters()
+        let power = recorder.averagePower(forChannel: 0)
+        // Convert dB (-160...0) to a 0...1 range
+        let minDb: Float = -60
+        let clampedPower = max(minDb, min(power, 0))
+        return (clampedPower - minDb) / -minDb
+    }
+
     func cancel() {
         recorder?.stop()
         recorder = nil
@@ -250,6 +266,10 @@ final class AppleSpeechTranscriptionService: SpeechTranscribing, @unchecked Send
         try recorder.start()
     }
 
+    func currentAudioLevel() -> Float? {
+        recorder.currentLevel()
+    }
+
     func stopRecordingAndTranscribe(locale: Locale) async throws -> String {
         let fileURL = try recorder.stop()
         defer { try? FileManager.default.removeItem(at: fileURL) }
@@ -304,6 +324,10 @@ final class OpenAICompatibleSpeechTranscriptionService: SpeechTranscribing, @unc
     private let session: URLSession
     private let transcriptionTimeout: TimeInterval
     private let recorder = DictationAudioRecorder()
+
+    func currentAudioLevel() -> Float? {
+        recorder.currentLevel()
+    }
 
     init(
         configuration: OpenAICompatibleTranscriptionConfiguration,

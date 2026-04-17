@@ -28,6 +28,11 @@ struct FloatingStatusView: View {
                 }
             }
 
+            if viewModel.state.phase == .listening, let provider = viewModel.audioLevelProvider {
+                AudioWaveformView(audioLevelProvider: provider)
+                    .padding(.vertical, 2)
+            }
+
             Text(bodyText)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
